@@ -3,10 +3,17 @@ from __future__ import annotations
 import pathlib
 from functools import lru_cache
 
+# 中文导读：
+# common.py 放测试共享的小工具，不是你主要实现作业的地方。
+# FIXTURES_PATH 指向 tests/fixtures，里面有测试用语料、GPT-2 vocab/merges、
+# 以及 Transformer snapshot 权重。
+
 FIXTURES_PATH = (pathlib.Path(__file__).resolve().parent) / "fixtures"
 
 
 @lru_cache
+# 测试辅助函数：把 0-255 的 byte 映射到 GPT-2 使用的可打印 unicode 字符。
+# BPE fixture 文件里用的是这种可打印形式；测试会把它转换回 bytes 后传给你的 tokenizer。
 def gpt2_bytes_to_unicode() -> dict[int, str]:
     """
     Returns a mapping between every possible byte (an integer from 0 to 255) to a

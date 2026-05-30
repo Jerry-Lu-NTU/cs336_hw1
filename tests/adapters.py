@@ -9,7 +9,20 @@ import torch
 from jaxtyping import Bool, Float, Int
 from torch import Tensor
 
+# 中文导读：
+# 这个文件是“测试 -> 你的实现”的适配层。
+# 测试只调用这里的函数，不直接调用 cs336_basics/ 里的模块。
+# 你的推荐做法是：
+# 1. 在 cs336_basics/ 中实现真正的模块或函数；
+# 2. 回到本文件，把每个 raise NotImplementedError 替换成对你实现的调用；
+# 3. 保持这里的函数签名、参数名和返回类型不变。
+#
+# 注意：这些注释说明接口职责，不是实现代码。不要为了通过测试去改测试逻辑。
 
+
+# 接口职责：无 bias Linear 前向。
+# 你需要用传入的 weights，而不是自己随机初始化权重。
+# 输入最后一维是 d_in，输出最后一维应是 d_out，前面的 batch/sequence 维度原样保留。
 def run_linear(
     d_in: int,
     d_out: int,
@@ -32,6 +45,9 @@ def run_linear(
     raise NotImplementedError
 
 
+# 接口职责：Embedding 前向。
+# 你需要根据 token_ids 从 weights 中取出对应 embedding。
+# 输出 shape 等于 token_ids.shape + (d_model,)。
 def run_embedding(
     vocab_size: int,
     d_model: int,
@@ -54,6 +70,8 @@ def run_embedding(
     raise NotImplementedError
 
 
+# 接口职责：SwiGLU FFN 前向。
+# 你需要用传入的三组权重组成 FFN；输入和输出最后一维都是 d_model，中间维度是 d_ff。
 def run_swiglu(
     d_model: int,
     d_ff: int,
@@ -86,6 +104,9 @@ def run_swiglu(
     raise NotImplementedError
 
 
+# 接口职责：scaled dot-product attention。
+# Q/K/V 可以带任意 leading dimensions，例如 batch 或 batch x heads；
+# mask 的最后两维是 queries x keys，需要和 attention score 对齐。
 def run_scaled_dot_product_attention(
     Q: Float[Tensor, " ... queries d_k"],
     K: Float[Tensor, " ... keys d_k"],
@@ -107,6 +128,8 @@ def run_scaled_dot_product_attention(
     raise NotImplementedError
 
 
+# 接口职责：不带 RoPE 的 causal multi-head self-attention。
+# 你需要完成 Q/K/V projection、分 head、attention、合并 head、output projection。
 def run_multihead_self_attention(
     d_model: int,
     num_heads: int,
@@ -141,6 +164,8 @@ def run_multihead_self_attention(
     raise NotImplementedError
 
 
+# 接口职责：带 RoPE 的 causal multi-head self-attention。
+# 和 run_multihead_self_attention 类似，但需要在 attention 前对 Q/K 应用 RoPE。
 def run_multihead_self_attention_with_rope(
     d_model: int,
     num_heads: int,
@@ -181,6 +206,8 @@ def run_multihead_self_attention_with_rope(
     raise NotImplementedError
 
 
+# 接口职责：单独运行 RoPE。
+# 输入和输出 shape 相同；token_positions 指定每个 token 的位置。
 def run_rope(
     d_k: int,
     theta: float,
@@ -203,6 +230,9 @@ def run_rope(
     raise NotImplementedError
 
 
+# 接口职责：单个 pre-norm Transformer block 前向。
+# weights 是课程参考实现的 state dict 子集；你需要把这些权重加载/映射到自己的 block。
+# 输出 shape 必须和 in_features 相同。
 def run_transformer_block(
     d_model: int,
     num_heads: int,
@@ -276,6 +306,8 @@ def run_transformer_block(
     raise NotImplementedError
 
 
+# 接口职责：完整 Transformer LM 前向。
+# 输入是 token id，输出是每个位置的 vocab logits；不要在这里做 softmax。
 def run_transformer_lm(
     vocab_size: int,
     context_length: int,
@@ -358,6 +390,8 @@ def run_transformer_lm(
     raise NotImplementedError
 
 
+# 接口职责：RMSNorm 前向。
+# 只在最后一维归一化，weights 是最后乘上的可学习缩放向量。
 def run_rmsnorm(
     d_model: int,
     eps: float,
@@ -381,6 +415,8 @@ def run_rmsnorm(
     raise NotImplementedError
 
 
+# 接口职责：SiLU 激活。
+# 对输入逐元素计算，输出 shape 与输入完全一致。
 def run_silu(in_features: Float[Tensor, " ..."]) -> Float[Tensor, " ..."]:
     """Given a tensor of inputs, return the output of applying SiLU
     to each element.
@@ -395,6 +431,9 @@ def run_silu(in_features: Float[Tensor, " ..."]) -> Float[Tensor, " ..."]:
     raise NotImplementedError
 
 
+# 接口职责：语言模型训练 batch 采样。
+# 从一维 token id 数组中随机采样 batch_size 个连续片段；
+# x 是当前位置 token，y 是下一个 token，二者都要放到指定 device。
 def run_get_batch(
     dataset: npt.NDArray, batch_size: int, context_length: int, device: str
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -418,6 +457,8 @@ def run_get_batch(
     raise NotImplementedError
 
 
+# 接口职责：数值稳定 softmax。
+# 在 dim 维度归一化，输出 shape 与输入相同。
 def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, " ..."]:
     """
     Given a tensor of inputs, return the output of softmaxing the given `dim`
@@ -434,6 +475,8 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
     raise NotImplementedError
 
 
+# 接口职责：平均 cross entropy。
+# inputs 是未归一化 logits，targets 是正确类别 id；返回标量 loss。
 def run_cross_entropy(
     inputs: Float[Tensor, " batch_size vocab_size"], targets: Int[Tensor, " batch_size"]
 ) -> Float[Tensor, ""]:
@@ -452,6 +495,8 @@ def run_cross_entropy(
     raise NotImplementedError
 
 
+# 接口职责：梯度裁剪。
+# 需要原地修改 parameter.grad；没有 grad 的参数要跳过。
 def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm: float) -> None:
     """Given a set of parameters, clip their combined gradients to have l2 norm at most max_l2_norm.
 
@@ -464,6 +509,8 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
     raise NotImplementedError
 
 
+# 接口职责：返回你的 AdamW optimizer 类。
+# 返回的是类本身，不是已经实例化的 optimizer 对象。
 def get_adamw_cls() -> Any:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
@@ -471,6 +518,7 @@ def get_adamw_cls() -> Any:
     raise NotImplementedError
 
 
+# 接口职责：给定 iteration，返回 warmup + cosine decay schedule 下的学习率。
 def run_get_lr_cosine_schedule(
     it: int,
     max_learning_rate: float,
@@ -499,6 +547,8 @@ def run_get_lr_cosine_schedule(
     raise NotImplementedError
 
 
+# 接口职责：保存 checkpoint。
+# checkpoint 至少需要包含 model state_dict、optimizer state_dict 和 iteration。
 def run_save_checkpoint(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
@@ -518,6 +568,8 @@ def run_save_checkpoint(
     raise NotImplementedError
 
 
+# 接口职责：加载 checkpoint。
+# 需要把 checkpoint 中的 model/optimizer state 恢复到传入对象，并返回 iteration。
 def run_load_checkpoint(
     src: str | os.PathLike | BinaryIO | IO[bytes],
     model: torch.nn.Module,
@@ -539,6 +591,8 @@ def run_load_checkpoint(
     raise NotImplementedError
 
 
+# 接口职责：构造 BPE Tokenizer 对象。
+# 返回对象至少需要提供 encode、decode、encode_iterable 方法。
 def get_tokenizer(
     vocab: dict[int, bytes],
     merges: list[tuple[bytes, bytes]],
@@ -562,6 +616,8 @@ def get_tokenizer(
     raise NotImplementedError
 
 
+# 接口职责：训练 BPE tokenizer。
+# 返回 vocab 和按创建顺序排列的 merges；vocab 的 token 内容是 bytes。
 def run_train_bpe(
     input_path: str | os.PathLike,
     vocab_size: int,

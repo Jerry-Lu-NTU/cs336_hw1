@@ -3,9 +3,17 @@ import torch
 import torch.nn.functional as F
 from torch.nn.utils.clip_grad import clip_grad_norm_
 
+# 中文导读：
+# 这个文件验证训练中会反复用到的基础数值工具。
+# 你需要在 tests/adapters.py 里接好 run_softmax、run_cross_entropy、
+# run_gradient_clipping 三个接口。这里的测试会和 PyTorch 官方实现对齐，
+# 同时检查大数输入下的数值稳定性。
+
 from .adapters import run_cross_entropy, run_gradient_clipping, run_softmax
 
 
+# 需要实现接口：run_softmax(in_features, dim)。
+# 测试目标：在指定维度做 softmax，且输入整体加上大常数后结果不应改变。
 def test_softmax_matches_pytorch():
     x = torch.tensor(
         [
@@ -24,6 +32,8 @@ def test_softmax_matches_pytorch():
     )
 
 
+# 需要实现接口：run_cross_entropy(inputs, targets)。
+# 测试目标：对 batch 里的目标类别计算平均 cross entropy，并能处理很大的 logits。
 def test_cross_entropy():
     inputs = torch.tensor(
         [
@@ -59,6 +69,8 @@ def test_cross_entropy():
     )
 
 
+# 需要实现接口：run_gradient_clipping(parameters, max_l2_norm)。
+# 测试目标：所有非空梯度作为整体计算 L2 norm，必要时原地缩放梯度；没有 grad 的参数要跳过。
 def test_gradient_clipping():
     tensors = [torch.randn((5, 5)) for _ in range(6)]
     max_norm = 1e-2

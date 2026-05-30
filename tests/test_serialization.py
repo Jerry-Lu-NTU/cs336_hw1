@@ -6,6 +6,14 @@ import torch.nn.functional as F
 from .adapters import get_adamw_cls, run_load_checkpoint, run_save_checkpoint
 
 
+# 中文导读：
+# 这个文件验证 checkpoint 保存和恢复。
+# 你需要实现 run_save_checkpoint、run_load_checkpoint，并且 get_adamw_cls()
+# 返回的优化器要能正确提供/恢复 state_dict。
+
+
+# 测试用的小模型。你的 checkpoint 代码不需要依赖这个类，
+# 只要能处理任意 torch.nn.Module 的 state_dict 即可。
 class _TestNet(nn.Module):
     def __init__(self, d_input: int = 100, d_output: int = 10):
         super().__init__()
@@ -20,6 +28,8 @@ class _TestNet(nn.Module):
         return x
 
 
+# 测试辅助函数：逐项比较两个 optimizer.state_dict()。
+# AdamW 的动量、方差、step 等状态都应在加载后保持一致。
 def are_optimizers_equal(optimizer1_state_dict, optimizer2_state_dict, atol=1e-8, rtol=1e-5):
     # Check if the keys of the main dictionaries are equal (e.g., 'state', 'param_groups')
     if set(optimizer1_state_dict.keys()) != set(optimizer2_state_dict.keys()):
@@ -54,6 +64,10 @@ def are_optimizers_equal(optimizer1_state_dict, optimizer2_state_dict, atol=1e-8
     return True
 
 
+# 需要实现接口：
+# - run_save_checkpoint(model, optimizer, iteration, out)
+# - run_load_checkpoint(src, model, optimizer) -> iteration
+# 测试目标：训练若干步后保存，再加载到新模型/新优化器，模型参数、优化器状态和迭代数都完全恢复。
 def test_checkpointing(tmp_path):
     torch.manual_seed(42)
     d_input = 100

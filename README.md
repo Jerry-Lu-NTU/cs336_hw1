@@ -3,6 +3,12 @@
 For a full description of the assignment, see the assignment handout at
 [cs336_assignment1_basics.pdf](./cs336_assignment1_basics.pdf)
 
+For a Chinese, non-solution guide to planning the implementation, see
+[HW1_GUIDE_ZH.md](./HW1_GUIDE_ZH.md).
+
+For uv environment setup notes, including GPU server setup, see
+[ENV_SETUP_ZH.md](./ENV_SETUP_ZH.md).
+
 If you see any issues with the assignment handout or code, please feel free to
 raise a GitHub issue or open a pull request with a fix.
 
@@ -47,4 +53,3 @@ gunzip owt_valid.txt.gz
 
 cd ..
 ```
-

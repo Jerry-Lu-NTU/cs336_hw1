@@ -5,6 +5,16 @@ from .adapters import run_train_bpe
 from .common import FIXTURES_PATH, gpt2_bytes_to_unicode
 
 
+# 中文导读：
+# 这个文件验证 BPE 训练函数 run_train_bpe(input_path, vocab_size, special_tokens)。
+# 你的实现需要返回：
+# - vocab: dict[int, bytes]，token id 到 token bytes 的映射；
+# - merges: list[tuple[bytes, bytes]]，按创建顺序排列的 merge pair。
+# 注意这里测试的是训练 tokenizer，不是 encode/decode；encode/decode 在 test_tokenizer.py。
+
+
+# 需要实现接口：run_train_bpe(...)。
+# 测试目标：小语料上训练速度不能太慢，避免每轮 merge 都低效地全量重复计算。
 def test_train_bpe_speed():
     """
     Ensure that BPE training is relatively efficient by measuring training
@@ -24,6 +34,8 @@ def test_train_bpe_speed():
     assert end_time - start_time < 1.5
 
 
+# 测试目标：在固定小语料和 vocab_size 下，merges 必须和参考结果完全一致；
+# vocab 不要求 id 到 bytes 的构造顺序完全一样，但 key 集合和值集合必须匹配。
 def test_train_bpe():
     input_path = FIXTURES_PATH / "corpus.en"
     vocab, merges = run_train_bpe(
@@ -62,6 +74,8 @@ def test_train_bpe():
     assert set(vocab.values()) == set(reference_vocab.values())
 
 
+# 测试目标：特殊 token 应进入 vocab，但不能和普通文本 merge 到一起。
+# 例如非特殊 token 的 bytes 中不应包含 b"<|" 这类特殊 token 片段。
 def test_train_bpe_special_tokens(snapshot):
     """
     Ensure that the special tokens are added to the vocabulary and not

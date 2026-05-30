@@ -4,6 +4,14 @@ import torch
 from .adapters import get_adamw_cls, run_get_lr_cosine_schedule
 
 
+# 中文导读：
+# 这个文件验证优化器和学习率调度。
+# 你需要实现 get_adamw_cls() 返回一个 Optimizer 类，
+# 还需要实现 run_get_lr_cosine_schedule(...) 返回某一步的学习率。
+
+
+# 测试辅助函数：给定一个 optimizer 类，训练一个很小的线性模型 1000 步。
+# test_adamw 会比较最终权重，所以你的 AdamW 状态更新、weight decay、bias correction 等细节要正确。
 def _optimize(opt_class) -> torch.Tensor:
     torch.manual_seed(42)
     model = torch.nn.Linear(3, 2, bias=False)
@@ -26,6 +34,9 @@ def _optimize(opt_class) -> torch.Tensor:
     return model.weight.detach()
 
 
+# 需要实现接口：get_adamw_cls()。
+# 测试目标：返回的类能像 torch.optim.Optimizer 一样实例化和 step；
+# 训练后结果可以匹配 PyTorch AdamW，或匹配课程参考实现的 snapshot。
 def test_adamw(numpy_snapshot):
     """
     Our reference implementation yields slightly different results than the
@@ -49,6 +60,8 @@ def test_adamw(numpy_snapshot):
     )
 
 
+# 需要实现接口：run_get_lr_cosine_schedule(it, max_lr, min_lr, warmup_iters, cosine_cycle_iters)。
+# 测试目标：先线性 warmup 到 max LR，再按 cosine decay 到 min LR，超过周期后保持 min LR。
 def test_get_lr_cosine_schedule():
     max_learning_rate = 1
     min_learning_rate = 1 * 0.1

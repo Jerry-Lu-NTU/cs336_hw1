@@ -7,17 +7,26 @@ import pytest
 import torch
 from torch import Tensor
 
+# 中文导读：
+# conftest.py 定义 pytest 自动可用的 fixtures。
+# 这里的 fixture 会给测试提供固定随机张量、模型超参数、snapshot 比较工具和参考权重。
+# 通常不需要改这个文件；理解它可以帮你知道测试里的 d_model、n_heads、q/k/v 等变量来自哪里。
+
 
 class DEFAULT:
     pass
 
 
+# 测试辅助：把 torch Tensor 转成 numpy array，方便和 .npz snapshot 比较。
 def _canonicalize_array[A: (np.ndarray, Tensor)](arr: A) -> np.ndarray:
     if isinstance(arr, Tensor):
         arr = arr.detach().cpu().numpy()
     return arr
 
 
+# 数值 snapshot 比较器。
+# test_model.py 中的 numpy_snapshot.assert_match(...) 会读取 tests/_snapshots/*.npz，
+# 并把你的输出和参考输出做 allclose 比较。
 class NumpySnapshot[A: (np.ndarray, Tensor)]:
     """Snapshot testing utility for NumPy arrays using .npz format."""
 
@@ -92,6 +101,8 @@ class NumpySnapshot[A: (np.ndarray, Tensor)]:
             )
 
 
+# 通用 Python 对象 snapshot 比较器。
+# test_train_bpe_special_tokens 使用它比较 vocab/merges 这类非 numpy 数据。
 class Snapshot[A: (np.ndarray, Tensor)]:
     def __init__(
         self,
@@ -147,6 +158,7 @@ class Snapshot[A: (np.ndarray, Tensor)]:
             assert actual == expected_data, f"Data does not match snapshot for {test_name}"
 
 
+# pytest fixture：给测试函数提供 snapshot 对象，用于普通 Python 对象比较。
 @pytest.fixture
 def snapshot(request):
     """
@@ -166,6 +178,7 @@ def snapshot(request):
 
 
 # Fixture that can be used in all tests
+# pytest fixture：给测试函数提供 numpy_snapshot 对象，用于 Tensor/ndarray 数值比较。
 @pytest.fixture
 def numpy_snapshot(request):
     """
@@ -188,6 +201,8 @@ def numpy_snapshot(request):
     return snapshot
 
 
+# pytest fixture：加载课程提供的小 Transformer 参考模型权重和配置。
+# test_model.py 会从这个 state_dict 中抽取权重传给你的 adapter。
 @pytest.fixture
 def ts_state_dict(request):
     import json
@@ -201,6 +216,8 @@ def ts_state_dict(request):
 
 
 # Model parameters used for model fixture
+# 以下 fixtures 是模型测试的固定超参数和随机输入。
+# pytest 会按函数参数名自动注入，例如 test_linear(..., d_model, d_ff)。
 
 
 @pytest.fixture
@@ -248,47 +265,55 @@ def d_ff():
     return 128
 
 
+# 固定随机 Query，shape: batch_size x n_queries x d_model。
 @pytest.fixture
 def q(batch_size, n_queries, d_model):
     torch.manual_seed(1)
     return torch.randn(batch_size, n_queries, d_model)
 
 
+# 固定随机 Key，shape: batch_size x n_keys x d_model。
 @pytest.fixture
 def k(batch_size, n_keys, d_model):
     torch.manual_seed(2)
     return torch.randn(batch_size, n_keys, d_model)
 
 
+# 固定随机 Value，shape: batch_size x n_keys x d_model。
 @pytest.fixture
 def v(batch_size, n_keys, d_model):
     torch.manual_seed(3)
     return torch.randn(batch_size, n_keys, d_model)
 
 
+# 固定随机 hidden states，供 Linear/FFN/Block 等测试使用。
 @pytest.fixture
 def in_embeddings(batch_size, n_queries, d_model):
     torch.manual_seed(4)
     return torch.randn(batch_size, n_queries, d_model)
 
 
+# 固定随机 bool mask，最后两维对应 queries x keys。
 @pytest.fixture
 def mask(batch_size, n_queries, n_keys):
     torch.manual_seed(5)
     return torch.randn(batch_size, n_queries, n_keys) > 0.5
 
 
+# 固定随机 token ids，供 embedding 和 Transformer LM 测试使用。
 @pytest.fixture
 def in_indices(batch_size, n_queries):
     torch.manual_seed(6)
     return torch.randint(0, 10_000, (batch_size, n_queries))
 
 
+# RoPE 的 theta 参数。
 @pytest.fixture
 def theta():
     return 10000.0
 
 
+# 默认 token positions: 0, 1, ..., n_queries-1。
 @pytest.fixture
 def pos_ids(n_queries):
     return torch.arange(0, n_queries)

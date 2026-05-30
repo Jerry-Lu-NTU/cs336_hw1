@@ -7,6 +7,17 @@ import pytest
 from .adapters import run_get_batch
 
 
+# 中文导读：
+# 这个文件只测试数据 batch 采样。
+# 需要实现接口：run_get_batch(dataset, batch_size, context_length, device)。
+# 返回值应是两个 LongTensor：x 是连续 token 片段，y 是对应的下一 token 标签。
+
+
+# 测试目标：
+# 1. x/y shape 都是 batch_size x context_length。
+# 2. 每个 y 都等于对应 x 向右移动一个 token。
+# 3. 随机起点覆盖完整合法范围，不越界，也不要固定采样同一个位置。
+# 4. device 参数确实被使用，传入非法 CUDA 设备时应暴露错误。
 def test_get_batch():
     dataset = np.arange(0, 100)
     context_length = 7
