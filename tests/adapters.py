@@ -8,6 +8,7 @@ import numpy.typing as npt
 import torch
 from jaxtyping import Bool, Float, Int
 from torch import Tensor
+import cs336_basics
 
 # 中文导读：
 # 这个文件是“测试 -> 你的实现”的适配层。
@@ -42,7 +43,24 @@ def run_linear(
         Float[Tensor, "... d_out"]: The transformed output of your linear module.
     """
 
-    raise NotImplementedError
+    # 1. 实例化你自己写的 Linear 模块
+    # (这里假设你的 Linear 类已经在同文件中定义好了)
+    Linear_module =  cs336_basics.model.Linear(d_in, d_out)
+    
+    # 2. 构造一个 state_dict (状态字典)
+    # 字典的 key 必须和你类里定义的 nn.Parameter 变量名一模一样（即 "W"）
+    # 因为形状都是 (d_out, d_in)，所以直接把 weights 塞进去即可，不用转置！
+    state_dict = {"W": weights}
+    
+    # 3. 使用 load_state_dict 将外部权重覆盖掉类里随机初始化的权重
+    # 这一步执行后，my_linear 里面的参数就变成标准答案的参数了
+    Linear_module.load_state_dict(state_dict)
+    
+    # 4. 执行前向传播并返回结果
+    # 这里直接调用模块对象，相当于执行了 Linear_module.forward(in_features)
+    # output = Linear_module(in_features)
+    
+    return Linear_module.forward(in_features)
 
 
 # 接口职责：Embedding 前向。
@@ -67,7 +85,10 @@ def run_embedding(
         Float[Tensor, "... d_model"]: Batch of embeddings returned by your Embedding layer.
     """
 
-    raise NotImplementedError
+    Embedding_module = cs336_basics.model.Embedding(vocab_size, d_model)
+    state_dict = {"W": weights}
+    Embedding_module.load_state_dict(state_dict)
+    return Embedding_module.forward(token_ids)
 
 
 # 接口职责：SwiGLU FFN 前向。
@@ -412,7 +433,10 @@ def run_rmsnorm(
         Float[Tensor,"... d_model"]: Tensor of with the same shape as `in_features` with the output of running
         RMSNorm of the `in_features`.
     """
-    raise NotImplementedError
+    RMSNorm_module = cs336_basics.model.RMSNorm(d_model, eps)
+    state_dict = {"W": weights}
+    RMSNorm_module.load_state_dict(state_dict)
+    return RMSNorm_module.forward(in_features)
 
 
 # 接口职责：SiLU 激活。
@@ -454,7 +478,7 @@ def run_get_batch(
         is the sampled input sequences, and the second tuple item is the corresponding
         language modeling labels.
     """
-    raise NotImplementedError
+    return cs336_basics.data.run_get_batch(dataset, batch_size, context_length, device)
 
 
 # 接口职责：数值稳定 softmax。
