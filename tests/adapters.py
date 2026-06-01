@@ -122,7 +122,10 @@ def run_swiglu(
     # swiglu.w1.weight.data = w1_weight
     # swiglu.w2.weight.data = w2_weight
     # swiglu.w3.weight.data = w3_weight
-    raise NotImplementedError
+    Swiglu_module = cs336_basics.model.Swiglu(d_model, d_ff)
+    state_dict = {"w1.weight": w1_weight, "w2.weight": w2_weight, "w3.weight": w3_weight}
+    Swiglu_module.load_state_dict(state_dict)
+    return Swiglu_module.forward(in_features)
 
 
 # 接口职责：scaled dot-product attention。

@@ -55,9 +55,44 @@ class RMSNorm(torch.nn.Module):
         return result.to(in_dtype)
 
 class Swiglu(torch.nn.Module):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, d_model: int, d_ff: int):
+        super().__init__()
+        # 如果按作业要求计算 d_ff（此时应该没用d_ff输入）
+        # raw_d_ff = int((8 / 3) * d_model)
+        # self.d_ff = 64 * math.ceil(raw_d_ff / 64)
+        self.w1 = torch.nn.Linear(d_model, d_ff, bias=False)  # 门控
+        self.w3 = torch.nn.Linear(d_model, d_ff, bias=False)  # 值
+        self.w2 = torch.nn.Linear(d_ff, d_model, bias=False)  # 输出投影
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        gate = self.w1(x) # 门控线性变换 weight(x)的底层是 in_features @ weight.T + bias，但这里 bias=False，所以没有偏置项
+        value = self.w3(x)
+        hidden = gate * torch.sigmoid(gate) * value  # SwiGLU 激活
+        return self.w2(hidden)
 
+
+class RoPE(torch.nn.Module):
+    def __init__(self, theta: float, d_k: int, max_seq_len: int, device: torch.device | None = None):
+        super().__init__()
+        self.d_k = d_k
+        self.max_seq_len = max_seq_len
+        self.device = device
+        # todo
+        # 预计算旋转位置编码矩阵，形状为 (max_seq_len, d_k)
+        position_ids = torch.arange(max_seq_len, device=self.device).unsqueeze(1)  # (max_seq_len, 1)
+        dim_ids = torch.arange(d_k // 2, device=self.device).unsqueeze(0)  # (1, d_k//2)
+        freqs = theta ** (-2 * dim_ids / d_k)  # (1, d_k//2)
+        self.register_buffer("sin_cache", torch.sin(position_ids * freqs))  # (max_seq_len, d_k//2)
+        self.register_buffer("cos_cache", torch.cos(position_ids * freqs))  # (max_seq_len, d_k//2)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # todo
+        seq_len = x.size(1)
+        sin_pos = self.sin_cache[:seq_len]  # (seq_len, d_model//2)
+        cos_pos = self.cos_cache[:seq_len]  # (seq_len, d_model//2)
+        x1, x2 = x.chunk(2, dim=-1)  # 将最后一维分成两半
+        x_rotated_1 = x1 * cos_pos - x2 * sin_pos
+        x_rotated_2 = x1 * sin_pos + x2 * cos_pos
+        return torch.cat([x_rotated_1, x_rotated_2], dim=-1)
 
 # def run_embedding(vocab_size: int, d_model: int, weights: torch.Tensor, token_ids: torch.Tensor) -> torch.Tensor:
 #     return weights[token_ids]
