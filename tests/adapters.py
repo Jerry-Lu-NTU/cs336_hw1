@@ -251,7 +251,8 @@ def run_rope(
     Returns:
         Float[Tensor, " ... sequence_length d_k"]: Tensor with RoPEd input.
     """
-    raise NotImplementedError
+    rope_module = cs336_basics.model.RoPE(theta, d_k, max_seq_len)
+    return rope_module.forward(in_query_or_key, token_positions)
 
 
 # 接口职责：单个 pre-norm Transformer block 前向。
@@ -499,7 +500,8 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         Float[Tensor, "..."]: Tensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    raise NotImplementedError
+    softmax_module = cs336_basics.model.Softmax(dim)
+    return softmax_module.forward(in_features)
 
 
 # 接口职责：平均 cross entropy。

@@ -68,6 +68,18 @@ class Swiglu(torch.nn.Module):
         value = self.w3(x)
         hidden = gate * torch.sigmoid(gate) * value  # SwiGLU 激活
         return self.w2(hidden)
+    
+class Softmax(torch.nn.Module):
+    def __init__(self, dim: int = -1):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # 为了数值稳定性，先减去 max(x) 再计算 exp : 等价于 softmax(x)公式中分子分母同时除以exp(max(x))，能避免 x 中的值过大导致 exp(x) 溢出。
+        x_max = x.max(dim=self.dim, keepdim=True).values #沿指定 dim 找最大值, 取max会变成张量，keepdim=True 保留该维度，方便广播
+        x_exp = torch.exp(x - x_max)
+        x_exp_sum = x_exp.sum(dim=self.dim, keepdim=True)
+        return x_exp / x_exp_sum
 
 
 class RoPE(torch.nn.Module):
@@ -76,43 +88,41 @@ class RoPE(torch.nn.Module):
         self.d_k = d_k
         self.max_seq_len = max_seq_len
         self.device = device
-        # todo
         # 预计算旋转位置编码矩阵，形状为 (max_seq_len, d_k)
-        position_ids = torch.arange(max_seq_len, device=self.device).unsqueeze(1)  # (max_seq_len, 1)
-        dim_ids = torch.arange(d_k // 2, device=self.device).unsqueeze(0)  # (1, d_k//2)
-        freqs = theta ** (-2 * dim_ids / d_k)  # (1, d_k//2)
-        self.register_buffer("sin_cache", torch.sin(position_ids * freqs))  # (max_seq_len, d_k//2)
-        self.register_buffer("cos_cache", torch.cos(position_ids * freqs))  # (max_seq_len, d_k//2)
+        position_ids = torch.arange(max_seq_len, device=self.device).float().unsqueeze(1)  # (max_seq_len, 1),转成 float，避免整数乘法截断
+        # (1, d_k//2)，索引是从0到d_k//2-1的维度索引，论文里是1到d_k//2，但这里从0开始，所以是 dim_ids / (d_k//2) * 2
+        dim_ids = torch.arange(0, d_k, 2, device=self.device).float().unsqueeze(0)  # (1, d_k//2)  [0, 2, 4, ...]
+        # theta_{i,k} = i / theta^(2k/d) = i * theta^(-2k/d)
+        freqs = position_ids * (theta ** (-dim_ids / d_k))  # (max_seq_len, d_k//2)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # todo
-        seq_len = x.size(1)
-        sin_pos = self.sin_cache[:seq_len]  # (seq_len, d_model//2)
-        cos_pos = self.cos_cache[:seq_len]  # (seq_len, d_model//2)
-        x1, x2 = x.chunk(2, dim=-1)  # 将最后一维分成两半
+        self.register_buffer("sin_cache", torch.sin(freqs))  # (max_seq_len, d_k//2)
+        self.register_buffer("cos_cache", torch.cos(freqs))  # (max_seq_len, d_k//2)
+
+    def forward(self, x: torch.Tensor, token_positions: torch.Tensor) -> torch.Tensor:
+        # token_positions 形状 (..., seq_len)，值域 [0, max_seq_len)
+        sin_pos = self.sin_cache[token_positions]  # (..., seq_len, d_k//2)
+        cos_pos = self.cos_cache[token_positions]  # (..., seq_len, d_k//2)
+        x1 = x[..., 0::2]  # 偶数索引: x0, x2, x4, x6...  (..., d//2)
+        x2 = x[..., 1::2]  # 奇数索引: x1, x3, x5, x7...  (..., d//2)
         x_rotated_1 = x1 * cos_pos - x2 * sin_pos
         x_rotated_2 = x1 * sin_pos + x2 * cos_pos
-        return torch.cat([x_rotated_1, x_rotated_2], dim=-1)
+        x_out = torch.stack([x_rotated_1, x_rotated_2], dim=-1).flatten(-2)
+        # 或：
+        # x_out = torch.zeros_like(x)
+        # x_out[..., 0::2] = x_rotated_1
+        # x_out[..., 1::2] = x_rotated_2
+        
+        return x_out  # 根据 token_positions 选择对应位置的 RoPE 编码
 
-# def run_embedding(vocab_size: int, d_model: int, weights: torch.Tensor, token_ids: torch.Tensor) -> torch.Tensor:
-#     return weights[token_ids]
+class Scaled_dot_product_attention(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
 
-# def run_linear(d_in: int, d_out: int, weights: torch.Tensor, in_features: torch.Tensor) -> torch.Tensor:
-#     """
-#     用给定的线性层权重和输入特征，计算线性变换的输出。
-    
-#     输入参数：
-#     - d_in: 输入特征的维度，即权重矩阵的第二维度。
-#     - d_out: 输出特征的维度，即权重矩阵的第一维度。
-#     - weights: 形状为 (d_out, d_in) 的线性层权重矩阵。
-#     - in_features: 形状为 (..., d_in) 的输入特征张量，最后一维是 d_in。
-    
-#     输出：
-#     - 形状为 (..., d_out) 的输出张量，最后一维是 d_out。
-    
-#     注意事项：
-#     - 线性变换的计算方式是 out = in_features @ weights.T，其中 @ 表示矩阵乘法，weights.T 是权重矩阵的转置。
-#     - 输出张量的数据类型应该与权重矩阵相同，通常是 torch.float32。
-#     """
-#     return in_features @ weights.T
-    
+
+    def forward(self, Q: torch.Tensor, K: torch.Tensor, V: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        d_k = Q.size(-1)
+        scores = (Q @ K.transpose(-2, -1)) / (d_k ** 0.5)  # 计算缩放点积注意力的分数
+        scores = scores.masked_fill(mask == 0, float("-inf"))  # 将 mask 中为 0 的位置的分数设为 -inf，使其在 softmax 后权重为 0
+        attn_weights = torch.softmax(scores, dim=self.dim)  # 对分数进行 softmax，得到注意力权重
+        output = attn_weights @ V  # 用注意力权重加权 V，得到输出
+        return output

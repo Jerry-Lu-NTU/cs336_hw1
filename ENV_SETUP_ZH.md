@@ -167,6 +167,8 @@ UV_CACHE_DIR=.uv-cache uv sync
 ### pytest 被系统插件干扰
 
 本机运行 pytest 时，系统里的 ROS pytest 插件会自动加载，并可能因为缺少 `lark` 等依赖而在收集测试前失败。这个问题和作业代码无关。
+用以下命令清除ros的pythonpath
+unset PYTHONPATH
 
 解决方式是在 pytest 命令前加：
 
