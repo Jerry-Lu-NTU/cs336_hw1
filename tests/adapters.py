@@ -45,12 +45,12 @@ def run_linear(
 
     # 1. 实例化你自己写的 Linear 模块
     # (这里假设你的 Linear 类已经在同文件中定义好了)
-    Linear_module =  cs336_basics.model.Linear(d_in, d_out)
+    Linear_module = cs336_basics.nn.Linear(d_in, d_out)
     
     # 2. 构造一个 state_dict (状态字典)
     # 字典的 key 必须和你类里定义的 nn.Parameter 变量名一模一样（即 "W"）
     # 因为形状都是 (d_out, d_in)，所以直接把 weights 塞进去即可，不用转置！
-    state_dict = {"W": weights}
+    state_dict = {"weight": weights}
     
     # 3. 使用 load_state_dict 将外部权重覆盖掉类里随机初始化的权重
     # 这一步执行后，my_linear 里面的参数就变成标准答案的参数了
@@ -85,8 +85,8 @@ def run_embedding(
         Float[Tensor, "... d_model"]: Batch of embeddings returned by your Embedding layer.
     """
 
-    Embedding_module = cs336_basics.model.Embedding(vocab_size, d_model)
-    state_dict = {"W": weights}
+    Embedding_module = cs336_basics.nn.Embedding(vocab_size, d_model)
+    state_dict = {"weight": weights}
     Embedding_module.load_state_dict(state_dict)
     return Embedding_module.forward(token_ids)
 
@@ -122,7 +122,7 @@ def run_swiglu(
     # swiglu.w1.weight.data = w1_weight
     # swiglu.w2.weight.data = w2_weight
     # swiglu.w3.weight.data = w3_weight
-    Swiglu_module = cs336_basics.model.Swiglu(d_model, d_ff)
+    Swiglu_module = cs336_basics.nn.Swiglu(d_model, d_ff)
     state_dict = {"w1.weight": w1_weight, "w2.weight": w2_weight, "w3.weight": w3_weight}
     Swiglu_module.load_state_dict(state_dict)
     return Swiglu_module.forward(in_features)
@@ -149,7 +149,8 @@ def run_scaled_dot_product_attention(
     Returns:
         Float[Tensor, " ... queries d_v"]: Output of SDPA
     """
-    raise NotImplementedError
+    sdpa = cs336_basics.nn.Scaled_dot_product_attention()
+    return sdpa.forward(Q, K, V, mask)
 
 
 # 接口职责：不带 RoPE 的 causal multi-head self-attention。
@@ -185,7 +186,12 @@ def run_multihead_self_attention(
         Float[Tensor, " ... sequence_length d_model"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    mha = cs336_basics.model.MultiheadSelfAttention(d_model, num_heads)
+    mha.q_proj.weight.data = q_proj_weight
+    mha.k_proj.weight.data = k_proj_weight
+    mha.v_proj.weight.data = v_proj_weight
+    mha.output_proj.weight.data = o_proj_weight
+    return mha.forward(in_features)
 
 
 # 接口职责：带 RoPE 的 causal multi-head self-attention。
@@ -227,7 +233,12 @@ def run_multihead_self_attention_with_rope(
         Float[Tensor, " ... sequence_length d_model"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    mha_rope = cs336_basics.model.MultiheadSelfAttentionWithRoPE(d_model, num_heads, max_seq_len, theta)
+    mha_rope.q_proj.weight.data = q_proj_weight
+    mha_rope.k_proj.weight.data = k_proj_weight
+    mha_rope.v_proj.weight.data = v_proj_weight
+    mha_rope.output_proj.weight.data = o_proj_weight
+    return mha_rope.forward(in_features, token_positions)
 
 
 # 接口职责：单独运行 RoPE。
@@ -251,7 +262,7 @@ def run_rope(
     Returns:
         Float[Tensor, " ... sequence_length d_k"]: Tensor with RoPEd input.
     """
-    rope_module = cs336_basics.model.RoPE(theta, d_k, max_seq_len)
+    rope_module = cs336_basics.nn.RoPE(theta, d_k, max_seq_len)
     return rope_module.forward(in_query_or_key, token_positions)
 
 
@@ -325,10 +336,12 @@ def run_transformer_block(
             Tensor to run your implementation on.
 
     Returns:
-        Float[Tensor, "batch sequence_length d_model"] Tensor with the output of
+        Float[Tensor,"batch sequence_length d_model"] Tensor with the output of
         running the Transformer block on the input features while using RoPE.
     """
-    raise NotImplementedError
+    block = cs336_basics.model.TransformerBlock(d_model, num_heads, d_ff, max_seq_len, theta)
+    block.load_state_dict(weights, strict=False)
+    return block.forward(in_features)
 
 
 # 接口职责：完整 Transformer LM 前向。
@@ -412,7 +425,9 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    lm = cs336_basics.model.TransformerLM(vocab_size, context_length, d_model, num_layers, num_heads, d_ff, rope_theta)
+    lm.load_state_dict(weights, strict=False)
+    return lm.forward(in_indices)
 
 
 # 接口职责：RMSNorm 前向。
@@ -437,8 +452,8 @@ def run_rmsnorm(
         Float[Tensor,"... d_model"]: Tensor of with the same shape as `in_features` with the output of running
         RMSNorm of the `in_features`.
     """
-    RMSNorm_module = cs336_basics.model.RMSNorm(d_model, eps)
-    state_dict = {"W": weights}
+    RMSNorm_module = cs336_basics.nn.RMSNorm(d_model, eps)
+    state_dict = {"weight": weights}
     RMSNorm_module.load_state_dict(state_dict)
     return RMSNorm_module.forward(in_features)
 
@@ -456,7 +471,7 @@ def run_silu(in_features: Float[Tensor, " ..."]) -> Float[Tensor, " ..."]:
         Float[Tensor,"..."]: of with the same shape as `in_features` with the output of applying
         SiLU to each element.
     """
-    raise NotImplementedError
+    return cs336_basics.nn.silu(in_features)
 
 
 # 接口职责：语言模型训练 batch 采样。
@@ -500,8 +515,7 @@ def run_softmax(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, "
         Float[Tensor, "..."]: Tensor of with the same shape as `in_features` with the output of
         softmax normalizing the specified `dim`.
     """
-    softmax_module = cs336_basics.model.Softmax(dim)
-    return softmax_module.forward(in_features)
+    return cs336_basics.nn.softmax(in_features, dim)
 
 
 # 接口职责：平均 cross entropy。
@@ -521,7 +535,7 @@ def run_cross_entropy(
     Returns:
         Float[Tensor, ""]: The average cross-entropy loss across examples.
     """
-    raise NotImplementedError
+    return cs336_basics.nn.cross_entropy(inputs, targets)
 
 
 # 接口职责：梯度裁剪。
@@ -535,7 +549,7 @@ def run_gradient_clipping(parameters: Iterable[torch.nn.Parameter], max_l2_norm:
 
     The gradients of the parameters (parameter.grad) should be modified in-place.
     """
-    raise NotImplementedError
+    cs336_basics.optim.gradient_clipping(parameters, max_l2_norm)
 
 
 # 接口职责：返回你的 AdamW optimizer 类。
@@ -544,7 +558,7 @@ def get_adamw_cls() -> Any:
     """
     Returns a torch.optim.Optimizer that implements AdamW.
     """
-    raise NotImplementedError
+    return cs336_basics.optim.AdamW
 
 
 # 接口职责：给定 iteration，返回 warmup + cosine decay schedule 下的学习率。
@@ -573,7 +587,7 @@ def run_get_lr_cosine_schedule(
     Returns:
         Learning rate at the given iteration under the specified schedule.
     """
-    raise NotImplementedError
+    return cs336_basics.optim.get_lr_cosine_schedule(it, max_learning_rate, min_learning_rate, warmup_iters, cosine_cycle_iters)
 
 
 # 接口职责：保存 checkpoint。
@@ -594,7 +608,7 @@ def run_save_checkpoint(
             we've completed.
         out (str | os.PathLike | BinaryIO | IO[bytes]): Path or file-like object to serialize the model, optimizer, and iteration to.
     """
-    raise NotImplementedError
+    cs336_basics.checkpoint.save_checkpoint(model, optimizer, iteration, out)
 
 
 # 接口职责：加载 checkpoint。
@@ -617,7 +631,7 @@ def run_load_checkpoint(
     Returns:
         int: the previously-serialized number of iterations.
     """
-    raise NotImplementedError
+    return cs336_basics.checkpoint.load_checkpoint(src, model, optimizer)
 
 
 # 接口职责：构造 BPE Tokenizer 对象。
@@ -642,7 +656,7 @@ def get_tokenizer(
     Returns:
         A BPE tokenizer that uses the provided vocab, merges, and special tokens.
     """
-    raise NotImplementedError
+    return cs336_basics.tokenizer.Tokenizer(vocab, merges, special_tokens)
 
 
 # 接口职责：训练 BPE tokenizer。
@@ -674,4 +688,4 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    raise NotImplementedError
+    return cs336_basics.tokenizer.train_bpe(input_path, vocab_size, special_tokens, **kwargs)

@@ -1,5 +1,5 @@
 import importlib.metadata
-from . import data, model
+from . import checkpoint, data, model, nn, optim, tokenizer
 
 try:
     __version__ = importlib.metadata.version("cs336_basics")
