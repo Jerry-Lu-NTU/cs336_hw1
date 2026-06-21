@@ -135,4 +135,8 @@ def softmax(x: Tensor, dim: int = -1) -> Tensor:
 
 
 def cross_entropy(inputs: Tensor, targets: Tensor) -> Tensor:
-    pass
+    x = inputs
+    x = x - x.max(dim=-1, keepdim=True).values  # 数值稳定性，避免 exp(x) 溢出
+    o_target = torch.gather(x, dim=-1, index=targets.unsqueeze(-1)).squeeze(-1)
+    loss = -o_target + torch.log(torch.exp(x).sum(dim=-1))  # 交叉熵损失公式：-log(softmax(target)) = -target + log(sum(exp(x)))
+    return loss.mean()  # 返回平均损失
