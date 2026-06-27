@@ -3,6 +3,7 @@ from collections.abc import Iterable
 import torch
 from torch import Tensor
 from torch.nn import Parameter
+import math
 
 
 class AdamW(torch.optim.Optimizer):
@@ -75,7 +76,12 @@ class AdamW(torch.optim.Optimizer):
 
 
 def gradient_clipping(parameters: Iterable[Parameter], max_l2_norm: float) -> None:
-    pass
+    parameters = [p for p in parameters if p.grad is not None]
+    total_norm = torch.sqrt(sum(torch.sum(p.grad.data ** 2) for p in parameters))
+    if total_norm > max_l2_norm:
+        clip_coef = max_l2_norm / (total_norm + 1e-6)
+        for p in parameters:
+            p.grad.data.mul_(clip_coef)
 
 
 def get_lr_cosine_schedule(
@@ -85,4 +91,11 @@ def get_lr_cosine_schedule(
     warmup_iters: int,
     cosine_cycle_iters: int,
 ) -> float:
-    pass
+    if it < warmup_iters:
+        return max_learning_rate * it / warmup_iters
+    elif it >= warmup_iters and it < cosine_cycle_iters:
+        progress = (it - warmup_iters) / (cosine_cycle_iters - warmup_iters)
+        cosine_decay = 0.5 * (1 + math.cos(progress * math.pi))
+        return min_learning_rate + (max_learning_rate - min_learning_rate) * cosine_decay
+    else:
+        return min_learning_rate    
